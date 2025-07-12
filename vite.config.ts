@@ -8,7 +8,8 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   preview: {
-    allowedHosts: ['nzoo-immo-4.onrender.com']
+    allowedHosts: ['nzoo-immo-4.onrender.com', 'localhost']
   }
 });
+
 
