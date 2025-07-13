@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, CreditCard, Smartphone } from 'lucide-react';
 import ReactCalendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
@@ -35,6 +35,14 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // --- Ajout useEffect pour forcer subscriptionType si bureau-prive ---
+  useEffect(() => {
+    if (spaceType === 'bureau-prive' && formData.subscriptionType === 'daily') {
+      setFormData((prev) => ({ ...prev, subscriptionType: 'monthly' }));
+    }
+  }, [spaceType, formData.subscriptionType]);
+  // --------------------------------------------------------------------
 
   const translations = {
     fr: {
@@ -237,7 +245,12 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
       case 1:
         return selectedDates !== null;
       case 2:
-        return formData.fullName !== '' && formData.email !== '' && formData.phone !== '' && formData.activity !== '';
+        return (
+          formData.fullName !== '' &&
+          formData.email !== '' &&
+          formData.phone !== '' &&
+          formData.activity !== ''
+        );
       case 3:
         return paymentMethod !== null && !paymentProcessing;
       default:
@@ -256,8 +269,6 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
   };
 
   // ------------- DÉBUT intégration paiement CinetPay avancé -------------
-
-  // Fonction pour initialiser la transaction via CinetPay et ouvrir la popup
   const initiatePayment = async () => {
     setPaymentProcessing(true);
     setPaymentError(null);
@@ -300,7 +311,6 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
 
       setPaymentToken(data.data.payment_token);
 
-      // Ouvre popup CinetPay avec le payment_token
       const win = window.open(`https://payment.cinetpay.com/?payment_token=${data.data.payment_token}`, '_blank', 'width=600,height=700');
       if (!win) {
         setPaymentError(language === 'fr' ? "Impossible d'ouvrir la fenêtre de paiement. Autorisez les pop-ups." : 'Cannot open payment window. Allow pop-ups.');
@@ -309,17 +319,14 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
       }
       setPaymentWindow(win);
 
-      // Commence à checker le statut du paiement
       setCheckingPayment(true);
       checkPaymentStatus(txId, win);
-
     } catch (err) {
       setPaymentError(language === 'fr' ? 'Erreur de connexion au service de paiement.' : 'Payment service connection error');
       setPaymentProcessing(false);
     }
   };
 
-  // Vérifie le statut de paiement toutes les 5 secondes
   const checkPaymentStatus = (txId: string, win: Window | null) => {
     const intervalId = setInterval(async () => {
       if (win && win.closed) {
@@ -341,7 +348,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
           setPaymentProcessing(false);
           setCheckingPayment(false);
           if (win && !win.closed) win.close();
-          setCurrentStep(4); // paiement OK, confirmation
+          setCurrentStep(4);
         } else if (statusData.data.status === 'REFUSED' || statusData.data.status === 'CANCELED') {
           clearInterval(intervalId);
           setPaymentProcessing(false);
@@ -350,17 +357,15 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
           setPaymentError(language === 'fr' ? 'Paiement refusé ou annulé.' : 'Payment refused or cancelled.');
         }
       } catch (e) {
-        // Erreur réseau : on peut log ou ignorer, continue à checker
+        // ignore network errors, continue checking
       }
     }, 5000);
   };
 
-  // Nouveau handler pour lancer paiement
   const handleReservation = () => {
     if (!paymentMethod) return;
     initiatePayment();
   };
-
   // ------------- FIN intégration paiement CinetPay avancé -------------
 
   const renderStepIndicator = () => (
@@ -442,207 +447,260 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
         <div className="flex justify-center">
           <ReactCalendar
             onChange={setSelectedDates}
-            value={selectedDates}
             selectRange={true}
+            value={selectedDates}
             minDate={new Date()}
-            className="border-none shadow-sm"
+            className="rounded-lg border border-gray-300 shadow-sm"
           />
         </div>
-        {selectedDates && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sky-light-600">
-              Période sélectionnée: {selectedDates[0].toLocaleDateString()} - {selectedDates[1].toLocaleDateString()}
-            </p>
-          </div>
+        {!selectedDates && (
+          <p className="text-red-600 mt-3">{t.validation.selectDates}</p>
         )}
       </div>
     </div>
   );
 
   const renderStep2 = () => (
-    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-      <h3 className="text-xl font-semibold text-gray-900 mb-6">Informations de Réservation</h3>
+    <div className="space-y-6">
+      <div>
+        <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+          {t.form.fullName} *
+        </label>
+        <input
+          type="text"
+          name="fullName"
+          id="fullName"
+          value={formData.fullName}
+          onChange={handleInputChange}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200"
+          required
+        />
+      </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div>
+        <label htmlFor="activity" className="block text-sm font-medium text-gray-700">
+          {t.form.activity} *
+        </label>
+        <input
+          type="text"
+          name="activity"
+          id="activity"
+          value={formData.activity}
+          onChange={handleInputChange}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200"
+          required
+        />
+      </div>
+
+      <div>
+        <label htmlFor="company" className="block text-sm font-medium text-gray-700">
+          {t.form.company}
+        </label>
+        <input
+          type="text"
+          name="company"
+          id="company"
+          value={formData.company}
+          onChange={handleInputChange}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+          {t.form.phone} *
+        </label>
+        <input
+          type="tel"
+          name="phone"
+          id="phone"
+          value={formData.phone}
+          onChange={handleInputChange}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200"
+          required
+        />
+      </div>
+
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+          {t.form.email} *
+        </label>
+        <input
+          type="email"
+          name="email"
+          id="email"
+          value={formData.email}
+          onChange={handleInputChange}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200"
+          required
+        />
+      </div>
+
+      <div>
+        <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+          {t.form.address}
+        </label>
+        <textarea
+          name="address"
+          id="address"
+          value={formData.address}
+          onChange={handleInputChange}
+          rows={3}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="occupants" className="block text-sm font-medium text-gray-700">
+          {t.form.occupants} *
+        </label>
+        <input
+          type="number"
+          name="occupants"
+          id="occupants"
+          min={1}
+          max={spaceInfo.maxOccupants}
+          value={formData.occupants}
+          onChange={handleInputChange}
+          className="mt-1 block w-24 rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200"
+          required
+        />
+      </div>
+
+      {spaceType !== 'salle-reunion' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t.form.fullName} *
+          <label htmlFor="subscriptionType" className="block text-sm font-medium text-gray-700">
+            {t.form.subscriptionType}
           </label>
-          <input
-            type="text"
-            name="fullName"
-            value={formData.fullName}
+          <select
+            name="subscriptionType"
+            id="subscriptionType"
+            value={formData.subscriptionType}
             onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            required
-          />
+            disabled={spaceType === 'bureau-prive'}
+            className={`mt-1 block w-48 rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-600 focus:ring focus:ring-blue-200 ${
+              spaceType === 'bureau-prive' ? 'bg-gray-100 cursor-not-allowed' : ''
+            }`}
+          >
+            <option value="daily">{t.form.daily}</option>
+            <option value="monthly">{t.form.monthly}</option>
+            <option value="yearly">{t.form.yearly}</option>
+          </select>
         </div>
+      )}
+    </div>
+  );
+
+  // --- REMPLACEMENT intégral de renderStep3 par la nouvelle version design ---
+  const renderStep3 = () => {
+    const totalAmount = calculateTotal();
+
+    return (
+      <div className="space-y-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200 max-w-md mx-auto">
+        <h3 className="text-2xl font-semibold text-gray-900 mb-6">{t.payment.title}</h3>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.activity} *</label>
-          <input
-            type="text"
-            name="activity"
-            value={formData.activity}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.company}</label>
-          <input
-            type="text"
-            name="company"
-            value={formData.company}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.phone} *</label>
-          <input
-            type="tel"
-            name="phone"
-            value={formData.phone}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.email} *</label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            required
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.address}</label>
-          <textarea
-            name="address"
-            value={formData.address}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            rows={3}
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.occupants}</label>
-          <input
-            type="number"
-            name="occupants"
-            min={1}
-            max={spaceInfo.maxOccupants || 10}
-            value={formData.occupants}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        {(spaceType === 'coworking' || spaceType === 'bureau-prive') && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.subscriptionType}</label>
-            <select
-              name="subscriptionType"
-              value={formData.subscriptionType}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md"
+          <p className="text-gray-700 mb-2 font-medium">{t.payment.methods} :</p>
+          <div className="flex space-x-6">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('mobileMoney')}
+              className={`flex items-center space-x-2 px-5 py-3 border rounded-lg transition-colors duration-200 focus:outline-none ${
+                paymentMethod === 'mobileMoney'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                  : 'bg-white border-gray-300 text-gray-700 hover:border-blue-600 hover:text-blue-600'
+              }`}
             >
-              <option value="daily">{t.form.daily}</option>
-              <option value="monthly">{t.form.monthly}</option>
-              <option value="yearly">{t.form.yearly}</option>
-            </select>
+              <Smartphone className="w-6 h-6" />
+              <span>{t.payment.mobileMoney}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('visa')}
+              className={`flex items-center space-x-2 px-5 py-3 border rounded-lg transition-colors duration-200 focus:outline-none ${
+                paymentMethod === 'visa'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                  : 'bg-white border-gray-300 text-gray-700 hover:border-blue-600 hover:text-blue-600'
+              }`}
+            >
+              <CreditCard className="w-6 h-6" />
+              <span>{t.payment.visa}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 p-4 bg-gray-50 rounded-md border border-gray-200 flex justify-between items-center">
+          <span className="text-gray-700 font-semibold">{t.payment.total} :</span>
+          <span className="text-xl font-bold text-blue-600">${totalAmount}</span>
+        </div>
+
+        {(paymentProcessing || checkingPayment) && (
+          <div className="flex items-center space-x-2 text-blue-600 font-medium">
+            <svg
+              className="animate-spin h-5 w-5 text-blue-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+              ></path>
+            </svg>
+            <span>{paymentProcessing ? t.payment.processing : t.payment.checking}</span>
           </div>
         )}
-      </div>
-    </div>
-  );
 
-  const renderStep3 = () => (
-    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 max-w-md mx-auto">
-      <h3 className="text-xl font-semibold text-gray-900 mb-6">{t.payment.title}</h3>
+        {paymentError && (
+          <p className="text-red-600 font-semibold mt-2">{t.payment.error + paymentError}</p>
+        )}
 
-      <div className="mb-6">
-        <p className="mb-2 font-semibold">{t.payment.methods}:</p>
-        <div className="flex items-center space-x-6">
-          <label className="inline-flex items-center">
-            <input
-              type="radio"
-              name="paymentMethod"
-              value="mobileMoney"
-              checked={paymentMethod === 'mobileMoney'}
-              onChange={() => setPaymentMethod('mobileMoney')}
-              disabled={paymentProcessing}
-              className="form-radio"
-            />
-            <span className="ml-2">{t.payment.mobileMoney}</span>
-          </label>
-          <label className="inline-flex items-center">
-            <input
-              type="radio"
-              name="paymentMethod"
-              value="visa"
-              checked={paymentMethod === 'visa'}
-              onChange={() => setPaymentMethod('visa')}
-              disabled={paymentProcessing}
-              className="form-radio"
-            />
-            <span className="ml-2">{t.payment.visa}</span>
-          </label>
+        <div className="flex justify-between mt-8">
+          <button
+            type="button"
+            onClick={prevStep}
+            disabled={paymentProcessing}
+            className="px-5 py-3 border rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            {t.buttons.previous}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleReservation}
+            disabled={!paymentMethod || paymentProcessing}
+            className="px-6 py-3 bg-blue-600 text-white rounded-md shadow-md hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
+          >
+            {t.buttons.pay}
+          </button>
         </div>
       </div>
-
-      <div className="mb-6">
-        <p>
-          <strong>{t.payment.total}:</strong> {calculateTotal()} XAF
-        </p>
-      </div>
-
-      {paymentError && (
-        <p className="mb-4 text-red-600 font-semibold">
-          {t.payment.error} {paymentError}
-        </p>
-      )}
-
-      <button
-        onClick={handleReservation}
-        disabled={!paymentMethod || paymentProcessing}
-        className={`w-full py-3 rounded-md text-white font-semibold ${
-          !paymentMethod || paymentProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-        }`}
-      >
-        {paymentProcessing ? t.payment.processing : t.buttons.pay}
-      </button>
-
-      {checkingPayment && (
-        <p className="mt-4 text-center text-blue-600 font-semibold">{t.payment.checking}</p>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderStep4 = () => (
-    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 text-center max-w-md mx-auto">
-      <CheckCircle className="mx-auto mb-4 text-green-600" size={64} />
-      <h3 className="text-2xl font-semibold text-gray-900 mb-2">{t.success.title}</h3>
-      <p className="mb-4">{t.success.message}</p>
-      <p>
-        <strong>{t.success.reference}:</strong> {transactionId}
+    <div className="text-center space-y-6 max-w-md mx-auto p-6 bg-white rounded-xl shadow-md border border-gray-200">
+      <CheckCircle className="mx-auto w-16 h-16 text-green-600" />
+      <h2 className="text-2xl font-semibold text-gray-900">{t.success.title}</h2>
+      <p className="text-gray-700">{t.success.message}</p>
+      <p className="font-mono text-gray-600">
+        {t.success.reference}: <strong>{transactionId}</strong>
       </p>
-
       <button
-        className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700"
+        className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
         onClick={() => {
           setCurrentStep(1);
+          setSelectedDates(null);
           setFormData({
             fullName: '',
             activity: '',
@@ -653,9 +711,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
             occupants: 1,
             subscriptionType: 'daily',
           });
-          setSelectedDates(null);
           setPaymentMethod(null);
-          setPaymentToken(null);
           setPaymentError(null);
           setPaymentProcessing(false);
           setCheckingPayment(false);
@@ -668,20 +724,24 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
   );
 
   return (
-    <div className="max-w-4xl mx-auto py-10 px-4">
-      <h1 className="text-3xl font-extrabold text-center mb-8">{t.title}</h1>
+    <main className="max-w-4xl mx-auto p-6 bg-gray-50 min-h-screen flex flex-col">
+      <h1 className="text-4xl font-bold mb-8 text-center">{t.title}</h1>
+
       {renderStepIndicator()}
 
-      {currentStep === 1 && renderStep1()}
-      {currentStep === 2 && renderStep2()}
-      {currentStep === 3 && renderStep3()}
-      {currentStep === 4 && renderStep4()}
+      <section className="flex-grow">
+        {currentStep === 1 && renderStep1()}
+        {currentStep === 2 && renderStep2()}
+        {currentStep === 3 && renderStep3()}
+        {currentStep === 4 && renderStep4()}
+      </section>
 
-      <div className="flex justify-between mt-8 max-w-md mx-auto">
+      <footer className="mt-8 flex justify-between">
         {currentStep > 1 && currentStep < 4 && (
           <button
+            type="button"
             onClick={prevStep}
-            className="px-6 py-3 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
+            className="px-6 py-3 border rounded-md text-gray-700 hover:bg-gray-100"
           >
             {t.buttons.previous}
           </button>
@@ -689,17 +749,15 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
 
         {currentStep < 3 && (
           <button
+            type="button"
             onClick={nextStep}
-            disabled={!validateStep(currentStep)}
-            className={`px-6 py-3 rounded-md text-white font-semibold ${
-              validateStep(currentStep) ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'
-            }`}
+            className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             {t.buttons.next}
           </button>
         )}
-      </div>
-    </div>
+      </footer>
+    </main>
   );
 };
 
