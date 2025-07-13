@@ -7,9 +7,4 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
-  preview: {
-    allowedHosts: ['nzoo-immo-4.onrender.com', 'localhost']
-  }
 });
-
-
