@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Calendar, Users, DollarSign, Clock, MapPin, Wifi, Coffee, Car, Shield, CheckCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import ReactCalendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
 interface ReservationPageProps {
   language: 'fr' | 'en';
 }
+
+const CINETPAY_API_KEY = '17852597076873f647d76131.41366104';
+const CINETPAY_SITE_ID = '105901836';
 
 const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
   const { spaceType } = useParams();
@@ -19,19 +22,28 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
     email: '',
     address: '',
     occupants: 1,
-    subscriptionType: 'daily'
+    subscriptionType: 'daily',
   });
   const [currentStep, setCurrentStep] = useState(1);
   const [showPayment, setShowPayment] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'mobileMoney' | 'visa' | null>(null);
+
+  // Nouveaux états pour paiement avancé
+  const [paymentToken, setPaymentToken] = useState<string | null>(null);
+  const [transactionId, setTransactionId] = useState<string | null>(null);
+  const [paymentWindow, setPaymentWindow] = useState<Window | null>(null);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const translations = {
     fr: {
-      title: 'Réservation d\'Espace',
+      title: "Réservation d'Espace",
       steps: {
         selection: 'Sélection',
         details: 'Détails',
         payment: 'Paiement',
-        confirmation: 'Confirmation'
+        confirmation: 'Confirmation',
       },
       spaces: {
         coworking: {
@@ -41,7 +53,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
           dailyPrice: 15,
           monthlyPrice: 300,
           yearlyPrice: 3000,
-          maxOccupants: 3
+          maxOccupants: 3,
         },
         'bureau-prive': {
           title: 'Bureau Privé',
@@ -49,15 +61,15 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
           features: ['Bureau Privé', 'WiFi Dédié', 'Parking', 'Sécurité 24/7'],
           monthlyPrice: 500,
           yearlyPrice: 5500,
-          maxOccupants: 10
+          maxOccupants: 10,
         },
         'salle-reunion': {
           title: 'Salle de Réunion',
           description: 'Salle moderne pour vos réunions professionnelles',
           features: ['Écran de Présentation', 'Système Audio', 'WiFi', 'Climatisation'],
           hourlyPrice: 25,
-          maxOccupants: 12
-        }
+          maxOccupants: 12,
+        },
       },
       form: {
         fullName: 'Nom Complet',
@@ -66,13 +78,13 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
         phone: 'Téléphone',
         email: 'Email',
         address: 'Adresse Physique',
-        occupants: 'Nombre d\'Occupants',
+        occupants: "Nombre d'Occupants",
         period: 'Période Souhaitée',
-        subscriptionType: 'Type d\'Abonnement',
+        subscriptionType: "Type d'Abonnement",
         daily: 'Journalier',
         monthly: 'Mensuel',
         yearly: 'Annuel',
-        hourly: 'Horaire'
+        hourly: 'Horaire',
       },
       payment: {
         title: 'Paiement Sécurisé',
@@ -80,25 +92,28 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
         mobileMoney: 'Mobile Money',
         visa: 'Carte VISA',
         total: 'Total à Payer',
-        processing: 'Traitement du Paiement...'
+        processing: 'Traitement du Paiement...',
+        checking: 'Vérification du paiement en cours...',
+        error: 'Erreur de paiement : ',
       },
       buttons: {
         next: 'Suivant',
         previous: 'Précédent',
         reserve: 'Réserver',
         pay: 'Payer Maintenant',
-        newReservation: 'Nouvelle Réservation'
+        newReservation: 'Nouvelle Réservation',
       },
       validation: {
         selectDates: 'Veuillez sélectionner les dates',
         fillRequired: 'Veuillez remplir tous les champs obligatoires',
-        maxOccupants: 'Nombre maximum d\'occupants dépassé'
+        maxOccupants: "Nombre maximum d'occupants dépassé",
       },
       success: {
         title: 'Réservation Confirmée !',
-        message: 'Votre réservation a été confirmée avec succès. Vous recevrez un email de confirmation.',
-        reference: 'Référence'
-      }
+        message:
+          'Votre réservation a été confirmée avec succès. Vous recevrez un email de confirmation.',
+        reference: 'Référence',
+      },
     },
     en: {
       title: 'Space Reservation',
@@ -106,7 +121,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
         selection: 'Selection',
         details: 'Details',
         payment: 'Payment',
-        confirmation: 'Confirmation'
+        confirmation: 'Confirmation',
       },
       spaces: {
         coworking: {
@@ -116,7 +131,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
           dailyPrice: 15,
           monthlyPrice: 300,
           yearlyPrice: 3000,
-          maxOccupants: 3
+          maxOccupants: 3,
         },
         'bureau-prive': {
           title: 'Private Office',
@@ -124,15 +139,15 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
           features: ['Private Office', 'Dedicated WiFi', 'Parking', '24/7 Security'],
           monthlyPrice: 500,
           yearlyPrice: 5500,
-          maxOccupants: 10
+          maxOccupants: 10,
         },
         'salle-reunion': {
           title: 'Meeting Room',
           description: 'Modern room for your professional meetings',
           features: ['Presentation Screen', 'Audio System', 'WiFi', 'Air Conditioning'],
           hourlyPrice: 25,
-          maxOccupants: 12
-        }
+          maxOccupants: 12,
+        },
       },
       form: {
         fullName: 'Full Name',
@@ -147,7 +162,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
         daily: 'Daily',
         monthly: 'Monthly',
         yearly: 'Yearly',
-        hourly: 'Hourly'
+        hourly: 'Hourly',
       },
       payment: {
         title: 'Secure Payment',
@@ -155,26 +170,29 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
         mobileMoney: 'Mobile Money',
         visa: 'VISA Card',
         total: 'Total to Pay',
-        processing: 'Processing Payment...'
+        processing: 'Processing Payment...',
+        checking: 'Checking payment status...',
+        error: 'Payment error: ',
       },
       buttons: {
         next: 'Next',
         previous: 'Previous',
         reserve: 'Reserve',
         pay: 'Pay Now',
-        newReservation: 'New Reservation'
+        newReservation: 'New Reservation',
       },
       validation: {
         selectDates: 'Please select dates',
         fillRequired: 'Please fill all required fields',
-        maxOccupants: 'Maximum occupants exceeded'
+        maxOccupants: 'Maximum occupants exceeded',
       },
       success: {
         title: 'Reservation Confirmed!',
-        message: 'Your reservation has been successfully confirmed. You will receive a confirmation email.',
-        reference: 'Reference'
-      }
-    }
+        message:
+          'Your reservation has been successfully confirmed. You will receive a confirmation email.',
+        reference: 'Reference',
+      },
+    },
   };
 
   const t = translations[language];
@@ -187,28 +205,30 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
     if (spaceType === 'salle-reunion') {
-      return spaceInfo.hourlyPrice * 8 * days; // 8 hours per day
+      return (spaceInfo.hourlyPrice || 0) * 8 * days; // 8 hours per day
     }
 
     switch (formData.subscriptionType) {
       case 'daily':
-        return spaceInfo.dailyPrice * days;
+        return (spaceInfo.dailyPrice || 0) * days;
       case 'monthly':
         const months = Math.ceil(days / 30);
-        return spaceInfo.monthlyPrice * months;
+        return (spaceInfo.monthlyPrice || 0) * months;
       case 'yearly':
         const years = Math.ceil(days / 365);
-        return spaceInfo.yearlyPrice * years;
+        return (spaceInfo.yearlyPrice || 0) * years;
       default:
         return 0;
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: name === 'occupants' ? Number(value) : value,
     }));
   };
 
@@ -217,9 +237,9 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
       case 1:
         return selectedDates !== null;
       case 2:
-        return formData.fullName && formData.email && formData.phone && formData.activity;
+        return formData.fullName !== '' && formData.email !== '' && formData.phone !== '' && formData.activity !== '';
       case 3:
-        return true;
+        return paymentMethod !== null && !paymentProcessing;
       default:
         return false;
     }
@@ -227,35 +247,139 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
 
   const nextStep = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, 4));
+      setCurrentStep((prev) => Math.min(prev + 1, 4));
     }
   };
 
   const prevStep = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1));
+    setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
-  const handleReservation = () => {
-    setShowPayment(true);
-    setTimeout(() => {
-      setCurrentStep(4);
-      setShowPayment(false);
-    }, 3000);
+  // ------------- DÉBUT intégration paiement CinetPay avancé -------------
+
+  // Fonction pour initialiser la transaction via CinetPay et ouvrir la popup
+  const initiatePayment = async () => {
+    setPaymentProcessing(true);
+    setPaymentError(null);
+
+    const amount = calculateTotal();
+    const currency = 'USD';
+    const txId = `NzooImmo_${Date.now()}`;
+    setTransactionId(txId);
+
+    const channels = paymentMethod === 'visa' ? 'CARD' : 'MOBILE_MONEY';
+
+    const payload = {
+      apikey: CINETPAY_API_KEY,
+      site_id: CINETPAY_SITE_ID,
+      transaction_id: txId,
+      amount: amount,
+      currency: currency,
+      channels: channels,
+      description: `Réservation ${spaceType}`,
+      customer_name: formData.fullName,
+      customer_email: formData.email,
+      customer_phone_number: formData.phone,
+      notify_url: 'https://ton-backend.com/api/cinetpay-notify', // à adapter à ton backend
+      return_url: window.location.origin + '/reservation-complete',
+    };
+
+    try {
+      const res = await fetch('https://api-checkout.cinetpay.com/v2/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (data.code !== '201') {
+        setPaymentError(language === 'fr' ? "Erreur lors de l'initialisation du paiement." : 'Payment initialization error');
+        setPaymentProcessing(false);
+        return;
+      }
+
+      setPaymentToken(data.data.payment_token);
+
+      // Ouvre popup CinetPay avec le payment_token
+      const win = window.open(`https://payment.cinetpay.com/?payment_token=${data.data.payment_token}`, '_blank', 'width=600,height=700');
+      if (!win) {
+        setPaymentError(language === 'fr' ? "Impossible d'ouvrir la fenêtre de paiement. Autorisez les pop-ups." : 'Cannot open payment window. Allow pop-ups.');
+        setPaymentProcessing(false);
+        return;
+      }
+      setPaymentWindow(win);
+
+      // Commence à checker le statut du paiement
+      setCheckingPayment(true);
+      checkPaymentStatus(txId, win);
+
+    } catch (err) {
+      setPaymentError(language === 'fr' ? 'Erreur de connexion au service de paiement.' : 'Payment service connection error');
+      setPaymentProcessing(false);
+    }
   };
+
+  // Vérifie le statut de paiement toutes les 5 secondes
+  const checkPaymentStatus = (txId: string, win: Window | null) => {
+    const intervalId = setInterval(async () => {
+      if (win && win.closed) {
+        clearInterval(intervalId);
+        setPaymentProcessing(false);
+        setCheckingPayment(false);
+        setPaymentError(language === 'fr' ? "Paiement annulé par l'utilisateur." : 'Payment cancelled by user.');
+        return;
+      }
+
+      try {
+        const statusRes = await fetch(
+          `https://api-checkout.cinetpay.com/v2/payment/check?apikey=${CINETPAY_API_KEY}&site_id=${CINETPAY_SITE_ID}&transaction_id=${txId}`
+        );
+        const statusData = await statusRes.json();
+
+        if (statusData.code === '00' && statusData.data.status === 'ACCEPTED') {
+          clearInterval(intervalId);
+          setPaymentProcessing(false);
+          setCheckingPayment(false);
+          if (win && !win.closed) win.close();
+          setCurrentStep(4); // paiement OK, confirmation
+        } else if (statusData.data.status === 'REFUSED' || statusData.data.status === 'CANCELED') {
+          clearInterval(intervalId);
+          setPaymentProcessing(false);
+          setCheckingPayment(false);
+          if (win && !win.closed) win.close();
+          setPaymentError(language === 'fr' ? 'Paiement refusé ou annulé.' : 'Payment refused or cancelled.');
+        }
+      } catch (e) {
+        // Erreur réseau : on peut log ou ignorer, continue à checker
+      }
+    }, 5000);
+  };
+
+  // Nouveau handler pour lancer paiement
+  const handleReservation = () => {
+    if (!paymentMethod) return;
+    initiatePayment();
+  };
+
+  // ------------- FIN intégration paiement CinetPay avancé -------------
 
   const renderStepIndicator = () => (
     <div className="flex items-center justify-center mb-8">
       {[1, 2, 3, 4].map((step) => (
         <div key={step} className="flex items-center">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-            currentStep >= step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-          }`}>
+          <div
+            className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+              currentStep >= step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+            }`}
+          >
             {currentStep > step ? <CheckCircle className="w-6 h-6" /> : step}
           </div>
           {step < 4 && (
-            <div className={`w-16 h-1 mx-2 ${
-              currentStep > step ? 'bg-blue-600' : 'bg-gray-200'
-            }`} />
+            <div
+              className={`w-16 h-1 mx-2 ${
+                currentStep > step ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            />
           )}
         </div>
       ))}
@@ -267,7 +391,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">{spaceInfo.title}</h3>
         <p className="text-gray-600 mb-6">{spaceInfo.description}</p>
-        
+
         <div className="grid md:grid-cols-2 gap-8">
           <div>
             <h4 className="font-semibold text-gray-900 mb-4">Équipements Inclus</h4>
@@ -280,7 +404,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
               ))}
             </div>
           </div>
-          
+
           <div>
             <h4 className="font-semibold text-gray-900 mb-4">Tarifs</h4>
             <div className="space-y-2">
@@ -338,7 +462,7 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
   const renderStep2 = () => (
     <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
       <h3 className="text-xl font-semibold text-gray-900 mb-6">Informations de Réservation</h3>
-      
+
       <div className="grid md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -349,135 +473,95 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
             name="fullName"
             value={formData.fullName}
             onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-gray-300 rounded-md"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t.form.email} *
-          </label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t.form.phone} *
-          </label>
-          <input
-            type="tel"
-            name="phone"
-            value={formData.phone}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t.form.activity} *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.activity} *</label>
           <input
             type="text"
             name="activity"
             value={formData.activity}
             onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-gray-300 rounded-md"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t.form.company}
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.company}</label>
           <input
             type="text"
             name="company"
             value={formData.company}
             onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-gray-300 rounded-md"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t.form.occupants} *
-          </label>
-          <select
-            name="occupants"
-            value={formData.occupants}
+          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.phone} *</label>
+          <input
+            type="tel"
+            name="phone"
+            value={formData.phone}
             onChange={handleInputChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {Array.from({ length: spaceInfo.maxOccupants }, (_, i) => i + 1).map(num => (
-              <option key={num} value={num}>{num} personne{num > 1 ? 's' : ''}</option>
-            ))}
-          </select>
+            className="w-full px-4 py-2 border border-gray-300 rounded-md"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.email} *</label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleInputChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md"
+            required
+          />
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t.form.address}
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.address}</label>
           <textarea
             name="address"
             value={formData.address}
             onChange={handleInputChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md"
             rows={3}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
-        {spaceType === 'coworking' && (
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t.form.subscriptionType}
-            </label>
-            <div className="grid grid-cols-3 gap-4">
-              <label className="flex items-center space-x-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="subscriptionType"
-                  value="daily"
-                  checked={formData.subscriptionType === 'daily'}
-                  onChange={handleInputChange}
-                  className="text-blue-600"
-                />
-                <span>{t.form.daily}</span>
-              </label>
-              <label className="flex items-center space-x-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="subscriptionType"
-                  value="monthly"
-                  checked={formData.subscriptionType === 'monthly'}
-                  onChange={handleInputChange}
-                  className="text-blue-600"
-                />
-                <span>{t.form.monthly}</span>
-              </label>
-              <label className="flex items-center space-x-2 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="subscriptionType"
-                  value="yearly"
-                  checked={formData.subscriptionType === 'yearly'}
-                  onChange={handleInputChange}
-                  className="text-blue-600"
-                />
-                <span>{t.form.yearly}</span>
-              </label>
-            </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.occupants}</label>
+          <input
+            type="number"
+            name="occupants"
+            min={1}
+            max={spaceInfo.maxOccupants || 10}
+            value={formData.occupants}
+            onChange={handleInputChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md"
+          />
+        </div>
+
+        {(spaceType === 'coworking' || spaceType === 'bureau-prive') && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t.form.subscriptionType}</label>
+            <select
+              name="subscriptionType"
+              value={formData.subscriptionType}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="daily">{t.form.daily}</option>
+              <option value="monthly">{t.form.monthly}</option>
+              <option value="yearly">{t.form.yearly}</option>
+            </select>
           </div>
         )}
       </div>
@@ -485,88 +569,80 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
   );
 
   const renderStep3 = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-        <h3 className="text-xl font-semibold text-gray-900 mb-6">Récapitulatif de la Réservation</h3>
-        
-        <div className="space-y-4">
-          <div className="flex justify-between py-2 border-b border-gray-200">
-            <span className="text-gray-600">Espace:</span>
-            <span className="font-medium">{spaceInfo.title}</span>
-          </div>
-          <div className="flex justify-between py-2 border-b border-gray-200">
-            <span className="text-gray-600">Client:</span>
-            <span className="font-medium">{formData.fullName}</span>
-          </div>
-          <div className="flex justify-between py-2 border-b border-gray-200">
-            <span className="text-gray-600">Période:</span>
-            <span className="font-medium">
-              {selectedDates && `${selectedDates[0].toLocaleDateString()} - ${selectedDates[1].toLocaleDateString()}`}
-            </span>
-          </div>
-          <div className="flex justify-between py-2 border-b border-gray-200">
-            <span className="text-gray-600">Occupants:</span>
-            <span className="font-medium">{formData.occupants} personne{formData.occupants > 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex justify-between py-3 text-lg font-semibold text-blue-600">
-            <span>Total:</span>
-            <span>${calculateTotal()}</span>
-          </div>
+    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 max-w-md mx-auto">
+      <h3 className="text-xl font-semibold text-gray-900 mb-6">{t.payment.title}</h3>
+
+      <div className="mb-6">
+        <p className="mb-2 font-semibold">{t.payment.methods}:</p>
+        <div className="flex items-center space-x-6">
+          <label className="inline-flex items-center">
+            <input
+              type="radio"
+              name="paymentMethod"
+              value="mobileMoney"
+              checked={paymentMethod === 'mobileMoney'}
+              onChange={() => setPaymentMethod('mobileMoney')}
+              disabled={paymentProcessing}
+              className="form-radio"
+            />
+            <span className="ml-2">{t.payment.mobileMoney}</span>
+          </label>
+          <label className="inline-flex items-center">
+            <input
+              type="radio"
+              name="paymentMethod"
+              value="visa"
+              checked={paymentMethod === 'visa'}
+              onChange={() => setPaymentMethod('visa')}
+              disabled={paymentProcessing}
+              className="form-radio"
+            />
+            <span className="ml-2">{t.payment.visa}</span>
+          </label>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-        <h4 className="font-semibold text-gray-900 mb-4">{t.payment.methods}</h4>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="p-4 border-2 border-sky-light-200 rounded-lg bg-sky-light-50 cursor-pointer hover:bg-sky-light-100 transition-colors">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-sky-light-400 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h5 className="font-medium text-gray-900">{t.payment.mobileMoney}</h5>
-                <p className="text-sm text-gray-600">Orange Money, Airtel Money</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gray-600 rounded-lg flex items-center justify-center">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h5 className="font-medium text-gray-900">{t.payment.visa}</h5>
-                <p className="text-sm text-gray-600">Paiement sécurisé</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="mb-6">
+        <p>
+          <strong>{t.payment.total}:</strong> {calculateTotal()} XAF
+        </p>
       </div>
 
-      {showPayment && (
-        <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100 text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">{t.payment.processing}</p>
-        </div>
+      {paymentError && (
+        <p className="mb-4 text-red-600 font-semibold">
+          {t.payment.error} {paymentError}
+        </p>
+      )}
+
+      <button
+        onClick={handleReservation}
+        disabled={!paymentMethod || paymentProcessing}
+        className={`w-full py-3 rounded-md text-white font-semibold ${
+          !paymentMethod || paymentProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+        }`}
+      >
+        {paymentProcessing ? t.payment.processing : t.buttons.pay}
+      </button>
+
+      {checkingPayment && (
+        <p className="mt-4 text-center text-blue-600 font-semibold">{t.payment.checking}</p>
       )}
     </div>
   );
 
   const renderStep4 = () => (
-    <div className="bg-white rounded-xl shadow-sm p-8 border border-gray-100 text-center">
-      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-        <CheckCircle className="w-12 h-12 text-green-600" />
-      </div>
-      <h3 className="text-2xl font-bold text-gray-900 mb-4">{t.success.title}</h3>
-      <p className="text-gray-600 mb-6">{t.success.message}</p>
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <p className="text-sm text-gray-600">{t.success.reference}: <span className="font-mono font-medium">NZ-{Date.now()}</span></p>
-      </div>
+    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 text-center max-w-md mx-auto">
+      <CheckCircle className="mx-auto mb-4 text-green-600" size={64} />
+      <h3 className="text-2xl font-semibold text-gray-900 mb-2">{t.success.title}</h3>
+      <p className="mb-4">{t.success.message}</p>
+      <p>
+        <strong>{t.success.reference}:</strong> {transactionId}
+      </p>
+
       <button
+        className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700"
         onClick={() => {
           setCurrentStep(1);
-          setSelectedDates(null);
           setFormData({
             fullName: '',
             activity: '',
@@ -575,10 +651,16 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
             email: '',
             address: '',
             occupants: 1,
-            subscriptionType: 'daily'
+            subscriptionType: 'daily',
           });
+          setSelectedDates(null);
+          setPaymentMethod(null);
+          setPaymentToken(null);
+          setPaymentError(null);
+          setPaymentProcessing(false);
+          setCheckingPayment(false);
+          setTransactionId(null);
         }}
-        className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
       >
         {t.buttons.newReservation}
       </button>
@@ -586,47 +668,35 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 text-center">{t.title}</h1>
-        </div>
+    <div className="max-w-4xl mx-auto py-10 px-4">
+      <h1 className="text-3xl font-extrabold text-center mb-8">{t.title}</h1>
+      {renderStepIndicator()}
 
-        {renderStepIndicator()}
+      {currentStep === 1 && renderStep1()}
+      {currentStep === 2 && renderStep2()}
+      {currentStep === 3 && renderStep3()}
+      {currentStep === 4 && renderStep4()}
 
-        <div className="mb-8">
-          {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
-          {currentStep === 4 && renderStep4()}
-        </div>
+      <div className="flex justify-between mt-8 max-w-md mx-auto">
+        {currentStep > 1 && currentStep < 4 && (
+          <button
+            onClick={prevStep}
+            className="px-6 py-3 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
+          >
+            {t.buttons.previous}
+          </button>
+        )}
 
-        {currentStep < 4 && (
-          <div className="flex justify-between">
-            <button
-              onClick={prevStep}
-              disabled={currentStep === 1}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                currentStep === 1
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-gray-600 text-white hover:bg-gray-700'
-              }`}
-            >
-              {t.buttons.previous}
-            </button>
-
-            <button
-              onClick={currentStep === 3 ? handleReservation : nextStep}
-              disabled={!validateStep(currentStep)}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                !validateStep(currentStep)
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-sky-light-400 text-white hover:bg-sky-light-500'
-              }`}
-            >
-              {currentStep === 3 ? t.buttons.pay : t.buttons.next}
-            </button>
-          </div>
+        {currentStep < 3 && (
+          <button
+            onClick={nextStep}
+            disabled={!validateStep(currentStep)}
+            className={`px-6 py-3 rounded-md text-white font-semibold ${
+              validateStep(currentStep) ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {t.buttons.next}
+          </button>
         )}
       </div>
     </div>
