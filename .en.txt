@@ -1,0 +1,1 @@
+VITE_SUPABASE_KEY=ta_clé_publique_supabase
