@@ -16,18 +16,16 @@ interface EmailData {
 
 export const sendReservationConfirmationEmail = async (data: EmailData): Promise<boolean> => {
   try {
+    console.log('🔄 Tentative d\'envoi d\'email avec les données:', data);
+    
     const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
     const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
     const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
+    console.log('🔑 Configuration EmailJS:', { serviceId, templateId, publicKey: publicKey ? 'Défini' : 'Non défini' });
+
     if (!serviceId || !templateId || !publicKey) {
       console.warn('EmailJS configuration missing. Please configure VITE_EMAILJS_PUBLIC_KEY, VITE_EMAILJS_SERVICE_ID, and VITE_EMAILJS_TEMPLATE_ID in your .env file');
-      return false;
-    }
-
-    // Vérifier si les clés sont encore les valeurs par défaut
-    if (publicKey.includes('your_emailjs_') || serviceId.includes('your_emailjs_') || templateId.includes('your_emailjs_')) {
-      console.warn('EmailJS configuration contains placeholder values. Please update with your real EmailJS credentials');
       return false;
     }
 
@@ -43,14 +41,34 @@ export const sendReservationConfirmationEmail = async (data: EmailData): Promise
       company: data.company || 'Non spécifiée',
       activity: data.activity,
       occupants: data.occupants,
-      message: `Votre réservation a été confirmée avec succès. Référence: ${data.reservation_id}`
+      message: `Votre réservation a été confirmée avec succès. Référence: ${data.reservation_id}`,
+      // Ajout de champs supplémentaires pour compatibilité
+      from_name: 'Nzoo Immo',
+      reply_to: 'contact@nzooimmo.com'
     };
 
+    console.log('📧 Paramètres du template:', templateParams);
+
+    // Initialiser EmailJS si ce n'est pas déjà fait
+    emailjs.init(publicKey);
+
     await emailjs.send(serviceId, templateId, templateParams, publicKey);
-    console.log('Email de confirmation envoyé avec succès');
+    console.log('✅ Email de confirmation envoyé avec succès');
     return true;
   } catch (error) {
-    console.error('Erreur lors de l\'envoi de l\'email:', error);
+    console.error('❌ Erreur lors de l\'envoi de l\'email:', error);
+    
+    // Log détaillé de l'erreur
+    if (error instanceof Error) {
+      console.error('Message d\'erreur:', error.message);
+      console.error('Stack trace:', error.stack);
+    }
+    
+    // Si c'est une erreur EmailJS spécifique
+    if (typeof error === 'object' && error !== null) {
+      console.error('Détails de l\'erreur EmailJS:', JSON.stringify(error, null, 2));
+    }
+    
     return false;
   }
 };
