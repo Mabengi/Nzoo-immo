@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { CheckCircle, CreditCard, Smartphone, Banknote } from 'lucide-react';
 import ReactCalendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import { createReservation } from '../services/reservationService';
 
 interface ReservationPageProps {
   language: 'fr' | 'en';
@@ -36,6 +37,11 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Nouveaux états pour la gestion des réservations
+  const [reservationSuccess, setReservationSuccess] = useState(false);
+  const [reservationError, setReservationError] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
 
   // --- Ajout useEffect pour forcer subscriptionType si bureau-prive ---
   useEffect(() => {
@@ -370,20 +376,54 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
     if (!paymentMethod) return;
 
     if (paymentMethod === 'cash') {
-      // Confirmation immédiate pour paiement cash
-      setCurrentStep(4);
-      setTransactionId(`CASH_${Date.now()}`);
-      setPaymentError(null);
-      setPaymentProcessing(false);
-      setCheckingPayment(false);
-
-      // TODO : appeler backend pour enregistrer réservation cash si besoin
-
+      handleCashPayment();
       return;
     }
 
     // Paiement en ligne via CinetPay
     initiatePayment();
+  };
+
+  const handleCashPayment = async () => {
+    if (!selectedDates) return;
+
+    setPaymentProcessing(true);
+    setPaymentError(null);
+    setReservationError(null);
+
+    const transactionId = `CASH_${Date.now()}`;
+    setTransactionId(transactionId);
+
+    try {
+      const reservationData = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        company: formData.company,
+        activity: formData.activity,
+        address: formData.address,
+        spaceType: spaceType || 'coworking',
+        startDate: selectedDates[0].toISOString().split('T')[0],
+        endDate: selectedDates[1].toISOString().split('T')[0],
+        occupants: formData.occupants,
+        subscriptionType: formData.subscriptionType,
+        amount: calculateTotal(),
+        paymentMethod: 'cash',
+        transactionId: transactionId,
+      };
+
+      const result = await createReservation(reservationData);
+      
+      if (result.success) {
+        setReservationSuccess(true);
+        setEmailSent(result.emailSent);
+        setCurrentStep(4);
+      }
+    } catch (error) {
+      setReservationError(error instanceof Error ? error.message : 'Erreur lors de la réservation');
+    } finally {
+      setPaymentProcessing(false);
+    }
   };
   // ------------- FIN intégration paiement CinetPay avancé -------------
 
@@ -683,37 +723,39 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
           <p className="mt-4 text-red-600 font-semibold">{t.payment.error + paymentError}</p>
         )}
 
+        {reservationError && (
+          <p className="mt-4 text-red-600 font-semibold">Erreur: {reservationError}</p>
+        )}
+
         {paymentProcessing && <p className="mt-4">{t.payment.processing}</p>}
         {checkingPayment && <p className="mt-2">{t.payment.checking}</p>}
 
-        <div className="mt-6 flex justify-between">
-          <button
-            type="button"
-            onClick={prevStep}
-            className="px-5 py-2 bg-gray-300 rounded-md hover:bg-gray-400"
-            disabled={paymentProcessing}
-          >
-            {t.buttons.previous}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleReservation}
-            className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            disabled={paymentProcessing || !paymentMethod}
-          >
-            {paymentMethod === 'cash' ? t.buttons.reserve : t.buttons.pay}
-          </button>
-        </div>
       </div>
     );
   };
 
   const renderStep4 = () => (
-    <div className="text-center space-y-6 p-8 bg-white rounded-xl shadow-md border border-green-400">
+    <div className="text-center space-y-6 p-8 bg-white rounded-xl shadow-md border border-green-200">
       <CheckCircle className="mx-auto w-16 h-16 text-green-500" />
       <h2 className="text-2xl font-bold">{t.success.title}</h2>
       <p>{t.success.message}</p>
+      
+      {emailSent && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <p className="text-green-700 text-sm">
+            ✅ Email de confirmation envoyé avec succès
+          </p>
+        </div>
+      )}
+      
+      {!emailSent && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-700 text-sm">
+            ⚠️ Réservation confirmée, mais email non envoyé
+          </p>
+        </div>
+      )}
+      
       <p>
         <strong>{t.success.reference}:</strong> {transactionId}
       </p>
@@ -736,6 +778,9 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
           setPaymentMethod(null);
           setPaymentError(null);
           setTransactionId(null);
+          setReservationError(null);
+          setReservationSuccess(false);
+          setEmailSent(false);
           setPaymentProcessing(false);
           setCheckingPayment(false);
           setPaymentWindow(null);
@@ -775,16 +820,35 @@ const ReservationPage: React.FC<ReservationPageProps> = ({ language }) => {
                 type="button"
                 onClick={prevStep}
                 className="px-5 py-2 bg-gray-300 rounded-md hover:bg-gray-400"
+                disabled={paymentProcessing}
               >
                 {t.buttons.previous}
               </button>
             )}
-            <button
-              type="submit"
-              className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ml-auto"
-            >
-              {currentStep === 3 ? (paymentMethod === 'cash' ? t.buttons.reserve : t.buttons.pay) : t.buttons.next}
-            </button>
+            
+            {currentStep !== 3 && (
+              <button
+                type="submit"
+                className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ml-auto disabled:opacity-50"
+                disabled={!validateStep(currentStep)}
+              >
+                {t.buttons.next}
+              </button>
+            )}
+            
+            {currentStep === 3 && (
+              <button
+                type="button"
+                onClick={handleReservation}
+                className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ml-auto disabled:opacity-50"
+                disabled={paymentProcessing || !paymentMethod}
+              >
+                {paymentProcessing ? 
+                  (language === 'fr' ? 'Traitement...' : 'Processing...') : 
+                  (paymentMethod === 'cash' ? t.buttons.reserve : t.buttons.pay)
+                }
+              </button>
+            )}
           </div>
         )}
       </form>
