@@ -21,7 +21,13 @@ export const sendReservationConfirmationEmail = async (data: EmailData): Promise
     const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
     if (!serviceId || !templateId || !publicKey) {
-      console.warn('EmailJS configuration missing');
+      console.warn('EmailJS configuration missing. Please configure VITE_EMAILJS_PUBLIC_KEY, VITE_EMAILJS_SERVICE_ID, and VITE_EMAILJS_TEMPLATE_ID in your .env file');
+      return false;
+    }
+
+    // Vérifier si les clés sont encore les valeurs par défaut
+    if (publicKey.includes('your_emailjs_') || serviceId.includes('your_emailjs_') || templateId.includes('your_emailjs_')) {
+      console.warn('EmailJS configuration contains placeholder values. Please update with your real EmailJS credentials');
       return false;
     }
 
