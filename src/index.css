@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+
+/* Base styles */
+@layer base {
+  html {
+    font-family: 'Poppins', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply font-poppins text-nzoo-dark bg-nzoo-white;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-montserrat;
+  }
+}
+
+/* Custom scrollbar */
+@layer utilities {
+  .scrollbar-nzoo::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-nzoo::-webkit-scrollbar-track {
+    @apply bg-nzoo-gray/20 rounded-full;
+  }
+  
+  .scrollbar-nzoo::-webkit-scrollbar-thumb {
+    @apply bg-nzoo-dark/30 rounded-full hover:bg-nzoo-dark/50;
+  }
+  
+  .scrollbar-nzoo::-webkit-scrollbar-thumb:hover {
+    @apply bg-nzoo-dark/60;
+  }
+}
+
+/* Custom components */
+@layer components {
+  .btn-nzoo-primary {
+    @apply bg-gradient-nzoo text-nzoo-white px-6 py-3 rounded-xl font-semibold font-montserrat shadow-soft hover:shadow-nzoo-hover transition-all duration-300 transform hover:scale-105;
+  }
+  
+  .btn-nzoo-secondary {
+    @apply bg-nzoo-white text-nzoo-dark border-2 border-nzoo-gray px-6 py-3 rounded-xl font-semibold font-montserrat hover:bg-nzoo-gray/10 transition-all duration-300;
+  }
+  
+  .card-nzoo {
+    @apply bg-nzoo-white rounded-2xl shadow-soft border border-nzoo-gray/20 p-6 hover:shadow-medium transition-all duration-300;
+  }
+  
+  .input-nzoo {
+    @apply w-full px-4 py-3 border-2 border-nzoo-gray rounded-xl focus:border-nzoo-dark focus:ring-4 focus:ring-nzoo-dark/10 transition-all duration-300 font-poppins placeholder-nzoo-dark/40;
+  }
+  
+  .badge-nzoo {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold font-montserrat;
+  }
+}
+
+/* React Calendar custom styles */
+.react-calendar {
+  @apply border-2 border-nzoo-gray/30 rounded-2xl shadow-soft font-poppins;
+}
+
+.react-calendar__tile {
+  @apply hover:bg-nzoo-dark/5 transition-colors duration-200;
+}
+
+.react-calendar__tile--active {
+  @apply bg-nzoo-dark text-nzoo-white;
+}
+
+.react-calendar__tile--now {
+  @apply bg-nzoo-gray/20 text-nzoo-dark font-semibold;
+}
+
+/* Animation improvements */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(24, 49, 84, 0.1), transparent);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
